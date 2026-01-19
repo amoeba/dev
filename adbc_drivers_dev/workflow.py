@@ -54,6 +54,10 @@ def generate_schema(args) -> int:
     return 0
 
 
+def template_not_implemented(message: str) -> str:
+    raise NotImplementedError(message)
+
+
 def generate_workflows(args) -> int:
     env = jinja2.Environment(
         loader=jinja2.PackageLoader("adbc_drivers_dev"),
@@ -65,6 +69,7 @@ def generate_workflows(args) -> int:
         trim_blocks=True,
         undefined=jinja2.StrictUndefined,
     )
+    env.globals["not_implemented"] = template_not_implemented
 
     config_path = args.repository / ".github/workflows/generate.toml"
     try:
@@ -92,31 +97,46 @@ def generate_workflows(args) -> int:
         return 1
 
     params = GenerateConfig.model_validate(params)
-
     workflows = args.repository / ".github/workflows"
+    langs = {
+        "go": ("Go", "go"),
+        "rust": ("Rust", "rust"),
+    }
 
-    if params.lang.get("go"):
+    for lang, (lang_human, lang_subdir) in langs.items():
+        lang_config = params.lang.get(lang)
+        if not lang_config:
+            continue
+
         template = env.get_template("test.yaml")
         write_workflow(
             workflows,
             template,
-            "go_test.yaml",
+            f"{lang}_test.yaml",
             {
                 **params.to_dict(),
                 "pull_request_trigger_paths": [".github/workflows/go_test.yaml"],
                 "release": False,
                 "workflow_name": "Test",
+                "lang": lang,
+                "lang_human": lang_human,
+                "lang_subdir": lang_subdir,
+                "lang_config": lang_config,
             },
         )
         write_workflow(
             workflows,
             template,
-            "go_release.yaml",
+            f"{lang}_release.yaml",
             {
                 **params.to_dict(),
                 "pull_request_trigger_paths": [".github/workflows/go_release.yaml"],
                 "release": True,
                 "workflow_name": "Release",
+                "lang": lang,
+                "lang_human": lang_human,
+                "lang_subdir": lang_subdir,
+                "lang_config": lang_config,
             },
         )
         template = env.get_template("go_test_pr.yaml")
@@ -124,7 +144,7 @@ def generate_workflows(args) -> int:
             write_workflow(
                 workflows,
                 template,
-                "go_test_pr.yaml",
+                f"{lang}_test_pr.yaml",
                 {
                     **params.to_dict(),
                 },

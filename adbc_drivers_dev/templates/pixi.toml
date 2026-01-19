@@ -31,6 +31,8 @@ platforms = ["linux-64", "osx-arm64", "win-64", "linux-aarch64"]
 version = "0.1.0"
 
 [tasks]
+# TODO: templatize by language
+# TODO: add additional make args here too
 make = "adbc-make run build DRIVER=<{driver}> VERBOSE=true"
 test = "go test -tags assert -v ./..."
 release = "adbc-release"

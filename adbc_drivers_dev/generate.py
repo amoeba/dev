@@ -17,8 +17,13 @@ import typing
 from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
 # Define workflow contexts in a single location
-WorkflowContext = typing.Literal["build:release", "test", "validate"]
-WORKFLOW_CONTEXTS: tuple[WorkflowContext, ...] = ("build:release", "test", "validate")
+WorkflowContext = typing.Literal["build:test", "build:release", "test", "validate"]
+WORKFLOW_CONTEXTS: tuple[WorkflowContext, ...] = (
+    "build:test",
+    "build:release",
+    "test",
+    "validate",
+)
 
 
 class SecretConfigDict(BaseModel):
@@ -43,6 +48,37 @@ class AwsConfig(BaseModel):
     region: str = Field(
         description="AWS region to use for authentication (e.g., us-west-2, us-east-1)"
     )
+
+
+class LangBuildConfig(BaseModel):
+    # validate_by_{name,alias} are to let us map "additional-make-args" to "additional_make_args"
+    model_config = {
+        "extra": "forbid",
+        "validate_by_name": True,
+        "validate_by_alias": True,
+    }
+
+    additional_make_args: list[str] = Field(
+        default_factory=list,
+        alias="additional-make-args",
+        description="A list of additional arguments to pass to adbc-make.",
+    )
+
+
+class LangConfig(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    build: LangBuildConfig = Field(
+        default_factory=LangBuildConfig,
+        description="Configuration for building the driver.",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def true_is_enabled(cls, data: typing.Any) -> typing.Any:
+        if isinstance(data, bool):
+            return {}
+        return data
 
 
 class ValidationConfig(BaseModel):
@@ -92,14 +128,16 @@ class GenerateConfig(BaseModel):
         default=False,
         description="Whether the driver is private. Most drivers will be not be private so you can omit this.",
     )
-    lang: dict[str, bool] = Field(
+    lang: dict[str, LangConfig | None] = Field(
         default_factory=dict,
         json_schema_extra={
-            "description": """Programming language(s) to enable workflows for. Only go is really supported right now. Keys should be lowercase. Set to true to enable, false to disable. Example:
+            "description": """Programming language(s) to enable workflows for. Only go and rust are supported. Keys should be lowercase. Set to true to enable with default config, or false (the default) to disable. Example:
 
 [lang]
 go = true
-python = false"""
+
+[lang.rust.build]
+additional-make-args = ["example"]"""
         },
     )
     secrets: dict[str, str | SecretConfigDict] = Field(
@@ -154,6 +192,15 @@ gcloud = true"""
         if v is not None and not v.strip():
             raise ValueError("environment must be non-empty if provided")
         return v
+
+    @field_validator("lang", mode="before")
+    @classmethod
+    def lang_boolean(cls, value: typing.Any) -> typing.Any:
+        value = value or {}
+        return {
+            k: LangConfig() if v is True else None if v is False else v
+            for k, v in value.items()
+        }
 
     @model_validator(mode="after")
     def process_secrets_and_permissions(self) -> "GenerateConfig":

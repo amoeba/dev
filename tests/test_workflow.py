@@ -15,7 +15,7 @@
 import pytest
 from pydantic import ValidationError
 
-from adbc_drivers_dev.generate import GenerateConfig
+from adbc_drivers_dev.generate import GenerateConfig, LangConfig
 
 
 def test_model_default() -> None:
@@ -75,8 +75,7 @@ def test_model_custom() -> None:
     assert config != GenerateConfig.model_validate({})
 
     config = GenerateConfig.model_validate({"lang": {"python": True, "java": False}})
-    assert config.lang == {"python": True, "java": False}
-    assert config.to_dict()["lang"] == {"python": True, "java": False}
+    assert config.lang == {"python": LangConfig(), "java": None}
     assert config == config
     assert config != GenerateConfig.model_validate({})
 
