@@ -16,7 +16,9 @@
 # limitations under the License.
 <% endif %>
 
-# This is a common workflow synchronizing workflows in driver repositories.
+# This is a common workflow synchronizing workflows in driver repositories. Note
+# that this workflow can't update itself due to GitHub's permissions model so
+# updates to instances of this workflow need to be updated by hand.
 
 name: Dev (Daily)
 
@@ -78,8 +80,17 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git checkout -b "$BRANCH"
-            # Only add workflow files
+
+            # Add all workflow files first
             git add .github/workflows/
+
+            # GitHub blocks workflows from updating themselves, meaning we can't
+            # update dev_daily.yaml from itself. Restore dev_daily if needed.
+            if git diff --cached --name-only | grep -q "dev_daily.yaml"; then
+              echo "Excluding dev_daily.yaml from commit (workflows cannot modify themselves)"
+              git restore --staged .github/workflows/dev_daily.yaml || true
+            fi
+
             git commit -m "update generated workflows"
             git push origin "$BRANCH"
 
