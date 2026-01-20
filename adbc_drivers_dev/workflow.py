@@ -18,6 +18,7 @@
 import argparse
 import functools
 import json
+import os
 import re
 import subprocess
 import sys
@@ -107,6 +108,10 @@ def generate_workflows(args) -> int:
         lang_config = params.lang.get(lang)
         if not lang_config:
             continue
+
+        if not os.path.exists(lang_subdir):
+            print(f"Your generate.toml specified '{lang} = true' but directory '{lang_subdir}' does not exist. Exiting.")
+            return 1
 
         template = env.get_template("test.yaml")
         write_workflow(
